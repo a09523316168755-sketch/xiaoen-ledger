@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#17130f">
+<title>小恩記帳</title>
+<style>
+:root{color-scheme:light dark;--bg:light-dark(#f5f1eb,#17130f);--card:light-dark(#fff,#211c17);--card2:light-dark(#f0ebe4,#2a241e);--text:light-dark(#29231e,#f4eee7);--muted:light-dark(#81776e,#a99e93);--line:light-dark(#e5ddd4,#393129);--accent:#9a6b42;--danger:#b24b43;--green:#5f8268}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC","PingFang TC",sans-serif;color:var(--text)}
+button,input,select{font:inherit}button{cursor:pointer}.app{max-width:620px;margin:auto;min-height:100vh;padding:18px 16px 100px}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.brand{font-weight:800;font-size:24px}.month{color:var(--muted);font-size:14px}
+.summary{display:grid;grid-template-columns:1fr 1fr;gap:10px}.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;box-shadow:0 4px 18px #00000008}.big{grid-column:1/-1}.label{color:var(--muted);font-size:13px}.money{font-size:27px;font-weight:800;margin-top:4px}.green{color:var(--green)}.red{color:var(--danger)}
+.section{margin-top:20px}.section h2{font-size:16px;margin:0 0 10px}
+.quick{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.quick button{border:1px solid var(--line);background:var(--card);border-radius:14px;padding:12px 4px;color:var(--text)}.quick span{display:block;font-size:22px;margin-bottom:4px}.quick small{font-size:11px;color:var(--muted)}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:9px}.form .full{grid-column:1/-1}input,select{width:100%;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:12px;padding:13px;outline:none}input:focus,select:focus{border-color:var(--accent)}.primary{width:100%;border:0;background:var(--accent);color:white;border-radius:13px;padding:14px;font-weight:700}
+.tabs{display:flex;gap:6px;background:var(--card2);padding:5px;border-radius:14px}.tabs button{flex:1;border:0;background:transparent;color:var(--muted);padding:9px;border-radius:10px}.tabs button.active{background:var(--card);color:var(--text);font-weight:700}
+.row{display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:1px solid var(--line)}.row:last-child{border-bottom:0}.left{display:flex;gap:10px;align-items:center}.icon{width:38px;height:38px;border-radius:12px;background:var(--card2);display:grid;place-items:center}.item{font-weight:650}.sub{font-size:12px;color:var(--muted);margin-top:2px}.amt{font-weight:750}.del{border:0;background:transparent;color:var(--muted);font-size:18px;margin-left:8px}
+.budget{margin-bottom:12px}.btop{display:flex;justify-content:space-between;font-size:13px}.bar{height:8px;background:var(--card2);border-radius:10px;margin-top:7px;overflow:hidden}.fill{height:100%;background:var(--accent);border-radius:10px}.fill.over{background:var(--danger)}
+.empty{text-align:center;color:var(--muted);padding:25px 10px}.footer{position:fixed;bottom:0;left:0;right:0;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(12px)}.footer button{max-width:620px;display:block;margin:auto}
+.note{font-size:12px;color:var(--muted);line-height:1.5}.incomeToggle{display:flex;gap:7px}.incomeToggle button{flex:1;border:1px solid var(--line);background:var(--card);color:var(--muted);border-radius:10px;padding:9px}.incomeToggle button.sel{background:var(--card2);color:var(--text);border-color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><div><div class="brand">小恩記帳</div><div class="month" id="today"></div></div><button onclick="resetAll()" style="border:0;background:transparent;color:var(--muted)">清除資料</button></div>
+
+  <div class="summary">
+    <div class="card big"><div class="label">本月可用結餘</div><div class="money" id="balance">$0</div><div class="note" id="incomeNote">收入 − 支出</div></div>
+    <div class="card"><div class="label">本月收入</div><div class="money green" id="income">$0</div></div>
+    <div class="card"><div class="label">本月支出</div><div class="money red" id="expense">$0</div></div>
+  </div>
+
+  <div class="section">
+    <h2>快速記一筆</h2>
+    <div class="quick">
+      <button onclick="preset('吃喝','🍱')"><span>🍱</span><small>吃喝</small></button>
+      <button onclick="preset('菸','🚬')"><span>🚬</span><small>菸</small></button>
+      <button onclick="preset('車','🚗')"><span>🚗</span><small>車</small></button>
+      <button onclick="preset('貓','🐈')"><span>🐈</span><small>貓</small></button>
+    </div>
+  </div>
+
+  <div class="section card" id="entry">
+    <div class="incomeToggle"><button id="expenseBtn" class="sel" onclick="setType('expense')">支出</button><button id="incomeBtn" onclick="setType('income')">收入</button></div>
+    <div style="height:10px"></div>
+    <div class="form">
+      <input id="amount" class="full" type="number" inputmode="decimal" placeholder="金額，例如 140">
+      <input id="item" placeholder="項目，例如 黑七星">
+      <select id="category">
+        <option>吃喝</option><option>菸</option><option>車</option><option>貓</option><option>娛樂</option><option>購物</option><option>社交</option><option>其他</option>
+      </select>
+      <input id="date" type="date">
+      <input id="note" placeholder="備註（可不填）">
+      <button class="primary full" onclick="addEntry()">加入記帳</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>本月分類</h2><div id="budgets"></div>
+  </div>
+
+  <div class="section">
+    <div class="tabs"><button id="tabMonth" class="active" onclick="showTab('month')">本月</button><button id="tabAll" onclick="showTab('all')">全部紀錄</button></div>
+    <div class="card" style="margin-top:9px"><div id="list"></div></div>
+  </div>
+</div>
+<div class="footer"><button class="primary" onclick="document.getElementById('amount').focus();window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'})">＋ 快速記帳</button></div>
+
+<script>
+const KEY='xiaoen-ledger-v1';
+const budget={吃喝:10000,菸:4200,車:5000,貓:3000,娛樂:2000,購物:4000,社交:2500,其他:3000};
+const icons={吃喝:'🍱',菸:'🚬',車:'🚗',貓:'🐈',娛樂:'🎮',購物:'🛍️',社交:'👥',其他:'📦'};
+let data=JSON.parse(localStorage.getItem(KEY)||'[]'), type='expense', tab='month';
+const money=n=>'$'+Math.round(n).toLocaleString('zh-TW');
+const today=new Date(); const pad=n=>String(n).padStart(2,'0');
+document.getElementById('date').value=`${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
+document.getElementById('today').textContent=`${today.getFullYear()} 年 ${today.getMonth()+1} 月`;
+
+function save(){localStorage.setItem(KEY,JSON.stringify(data));render()}
+function setType(t){type=t;document.getElementById('expenseBtn').classList.toggle('sel',t==='expense');document.getElementById('incomeBtn').classList.toggle('sel',t==='income')}
+function preset(cat,ic){document.getElementById('category').value=cat;document.getElementById('item').value=cat;document.getElementById('amount').focus();document.getElementById('entry').scrollIntoView({behavior:'smooth',block:'center'})}
+function addEntry(){
+  const amount=Number(document.getElementById('amount').value), item=document.getElementById('item').value.trim(), date=document.getElementById('date').value;
+  if(!amount||amount<=0)return alert('請輸入金額');
+  data.push({id:Date.now(),amount,item:item||document.getElementById('category').value,type,category:document.getElementById('category').value,date:date||new Date().toISOString().slice(0,10),note:document.getElementById('note').value.trim()});
+  document.getElementById('amount').value='';document.getElementById('item').value='';document.getElementById('note').value='';save();
+}
+function isMonth(x){const d=new Date(x);return d.getFullYear()===today.getFullYear()&&d.getMonth()===today.getMonth()}
+function render(){
+  const m=data.filter(x=>isMonth(x.date)), inc=m.filter(x=>x.type==='income').reduce((a,x)=>a+x.amount,0), exp=m.filter(x=>x.type==='expense').reduce((a,x)=>a+x.amount,0);
+  document.getElementById('income').textContent=money(inc);document.getElementById('expense').textContent=money(exp);document.getElementById('balance').textContent=money(inc-exp);
+  const cats={};m.filter(x=>x.type==='expense').forEach(x=>cats[x.category]=(cats[x.category]||0)+x.amount);
+  document.getElementById('budgets').innerHTML=Object.keys(budget).map(c=>{let v=cats[c]||0,p=Math.min(v/budget[c]*100,100);return `<div class="budget"><div class="btop"><span>${icons[c]} ${c}</span><span>${money(v)} / ${money(budget[c])}</span></div><div class="bar"><div class="fill ${v>budget[c]?'over':''}" style="width:${p}%"></div></div></div>`}).join('');
+  const arr=(tab==='month'?m:data).slice().sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id);
+  document.getElementById('list').innerHTML=arr.length?arr.map(x=>`<div class="row"><div class="left"><div class="icon">${x.type==='income'?'💰':icons[x.category]}</div><div><div class="item">${esc(x.item)}</div><div class="sub">${x.date} · ${x.type==='income'?'收入':x.category}${x.note?' · '+esc(x.note):''}</div></div></div><div><span class="amt ${x.type==='income'?'green':'red'}">${x.type==='income'?'+':'−'}${money(x.amount)}</span><button class="del" onclick="del(${x.id})">×</button></div></div>`).join(''):'<div class="empty">還沒有紀錄<br>先記第一筆吧。</div>';
+}
+function esc(s){return s.replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
+function del(id){data=data.filter(x=>x.id!==id);save()}
+function showTab(t){tab=t;document.getElementById('tabMonth').classList.toggle('active',t==='month');document.getElementById('tabAll').classList.toggle('active',t==='all');render()}
+function resetAll(){if(confirm('確定刪除這台裝置上的全部記帳資料？')){data=[];save()}}
+render();
+</script>
+</body>
+</html>
