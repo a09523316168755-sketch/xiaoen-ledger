@@ -1,0 +1,25 @@
+{
+  "id": "./",
+  "name": "Xiaoen Ledger",
+  "short_name": "Xiaoen",
+  "description": "個人財務記帳工具",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0e1018",
+  "theme_color": "#0e1018",
+  "icons": [
+    {
+      "src": "./xiaoen-icon-192.webp",
+      "sizes": "192x192",
+      "type": "image/webp",
+      "purpose": "any"
+    },
+    {
+      "src": "./xiaoen-icon-512.webp",
+      "sizes": "512x512",
+      "type": "image/webp",
+      "purpose": "any"
+    }
+  ]
+}
