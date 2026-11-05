@@ -216,7 +216,7 @@ if(Array.isArray(raw.audit))v.audit=raw.audit;
 if(raw.analyticsSettings&&typeof raw.analyticsSettings==='object'){for(const key of ['monthlyBudget','monthlyEssentials','emergencyFund']){const val=raw.analyticsSettings[key];v.analyticsSettings[key]=val===null||val===undefined?null:Number.isSafeInteger(Number(val))&&Number(val)>=0?Number(val):null}}
 if(Array.isArray(raw.quick)&&raw.quick.length)v.quick=raw.quick.map(q=>({id:String(q.id||uid()),name:String(q.name||'快捷'),icon:q.icon||q.emoji||'·',group:q.group||guessGroup('expense',q.category),sub:q.sub||guessSub('expense',q.category),amount:Number.isSafeInteger(q.amount)&&q.amount>0?q.amount:null}));
 if(raw.categories){for(const type of ['expense','income'])for(const label of raw.categories[type]||[]){const groupName=guessGroup(type,label),subName=guessSub(type,label);let g=v.categoryTree[type].find(x=>x.name===groupName);if(!g){g={id:uid(),name:groupName,active:true,subs:[]};v.categoryTree[type].push(g)}if(!g.subs.some(x=>x.name===subName))g.subs.push({id:uid(),name:subName,active:true})}}
-for(const r of v.rows){if(r.type==='transfer')continue;let g=v.categoryTree[r.type].find(x=>x.name===r.group);if(!g){g={id:uid(),name:r.group||'其他',active:true,subs:[]};v.categoryTree[r.type].push(g)}if(!g.subs.some(x=>x.name===r.sub))g.subs.push({id:uid(),name:r.sub||'其他',active:true})}
+for(const r of v.rows){if(r.type==='transfer'||(r.type==='income'&&r.analysisKind==='refund'))continue;let g=v.categoryTree[r.type].find(x=>x.name===r.group);if(!g){g={id:uid(),name:r.group||'其他',active:true,subs:[]};v.categoryTree[r.type].push(g)}if(!g.subs.some(x=>x.name===r.sub))g.subs.push({id:uid(),name:r.sub||'其他',active:true})}
 return v}
 let data;let storageOk=true;
 try{const raw=localStorage.getItem(KEY);if(raw)data=migrate(JSON.parse(raw));else{const old=localStorage.getItem(PREV)||localStorage.getItem(EARLY);data=migrate(old?JSON.parse(old):null)}}catch(err){data=blank();storageOk=false;alert('無法讀取舊紀錄：'+err.message+'。請勿清除瀏覽器資料，先備份舊紀錄。')}
@@ -286,7 +286,7 @@ if(isRefund){
  if(already+amount>Number(original.amount))throw Error('退款總額不能超過原交易金額（已退款 '+fmt(already)+'）');
 }
 const settledDate=$('settledDate').value;
-if(settledDate&&!/^\\d{4}-\\d{2}-\\d{2}$/.test(settledDate))throw Error('實際入扣款日期不正確');
+if(settledDate&&!/^\d{4}-\d{2}-\d{2}$/.test(settledDate))throw Error('實際入扣款日期不正確');
 const g=entryType==='transfer'?'':isRefund?original.group:$('group').value;
 const sub=entryType==='transfer'?'':isRefund?original.sub:$('subcategory').value;
 const record={...(old||{}),id:old?old.id:uid(),type:entryType,amount,date,time,group:g,sub,category:sub,accountId:from,toAccountId:to,note:$('note').value.trim(),deletedAt:null,createdAt:old?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString(),analysisKind:isRefund?'refund':'normal',refundOf:isRefund?String(refundOf):'',incomeSource:entryType==='income'&&!isRefund?$('incomeSource').value:'',costNature:entryType==='expense'?$('costNature').value:isRefund?original.costNature||'':'',projectTag:entryType==='expense'?$('projectTag').value:isRefund?original.projectTag||'':'',settledDate};
