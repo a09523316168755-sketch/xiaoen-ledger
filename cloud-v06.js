@@ -93,7 +93,7 @@ $('cloudBackup').onclick=backupLocal;
 $('cloudSignOut').onclick=async()=>{if(pending){state('尚有未同步內容。請先重試同步或下載備份。','warning');backupLocal();return}const {error}=await api.auth.signOut();if(error)return state(error.message,'error');const oldDirty=dirtyKey();enabled=false;user=null;revision=0;showAuth(null);resetEntry();backupLocal();data=blank();safeLocalSave();localStorage.removeItem(OWNER_KEY);if(oldDirty)localStorage.removeItem(oldDirty);renderAll();state('已登出。這台瀏覽器的雲端工作資料已隱藏，原始本機備份不會自動刪除。','warning')};
 $('cloudForgot').onclick=async()=>{
  const address=email.value.trim();
- if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(address))return state('請先填寫註冊時的電子郵件。','warning');
+ if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address))return state('請先填寫註冊時的電子郵件。','warning');
  if(resetMailBusy)return;
  if(!api)return state('雲端登入服務尚未載入，請重新整理後重試。','error');
  resetMailBusy=true;
@@ -144,5 +144,5 @@ setInterval(()=>{if(document.visibilityState==='visible'&&enabled)void checkRemo
    if(!sessionData?.session)state('重設連結無法使用或已過期，請重新申請密碼重設信。','error');
    else setTimeout(()=>{if(!recoveryMode)showRecovery()},200);
  }else if(!recoveryMode) await connectUser(sessionData?.session?.user||null);
-})();;
+})();
 })();
