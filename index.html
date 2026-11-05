@@ -269,7 +269,7 @@ function resetEntry(){editing=null;$('entry').reset();$('editId').value='';$('fo
 $('cancelEdit').onclick=resetEntry;
 $('account').addEventListener('change',()=>{if($('account').value)localStorage.setItem('xiaoen-ledger-last-account',$('account').value)});
 function account(id){return data.accounts.find(a=>a.id===id)}
-function accountDelta(a,r){if(!a||r.deletedAt)return 0;const credit=a.kind==='credit';if(r.type==='expense'&&r.accountId===a.id)return credit?r.amount:-r.amount;if(r.type==='income'&&r.accountId===a.id)return credit?-r.amount:r.amount;if(r.type==='transfer'){if(r.accountId===a.id)return -r.amount;if(r.toAccountId===a.id)return credit?-r.amount:r.amount}return 0}
+function accountDelta(a,r){if(!a||r.deletedAt)return 0;const asOf=window.LedgerAnalyticsCore?.todayTaipei()||today();if(r.date>asOf)return 0;const credit=a.kind==='credit';if(r.settledDate&&r.settledDate>asOf&&(r.type==='transfer'||!credit||r.type==='income'))return 0;if(r.type==='expense'&&r.accountId===a.id)return credit?r.amount:-r.amount;if(r.type==='income'&&r.accountId===a.id)return credit?-r.amount:r.amount;if(r.type==='transfer'){if(r.accountId===a.id)return -r.amount;if(r.toAccountId===a.id)return credit?-r.amount:r.amount}return 0}
 function balance(a){return Number(a.opening)||0+0}
 function computedBalance(a){return Number(a.opening||0)+data.rows.reduce((n,r)=>n+accountDelta(a,r),0)}
 function totals(){if(window.ledgerDataReady===false||!storageOk){for(const id of ['income','expense','net','available'])$(id).textContent=storageOk?'讀取中…':'資料異常';return}
