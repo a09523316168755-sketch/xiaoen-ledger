@@ -72,7 +72,7 @@ footer{font-size:11px;color:#697287;text-align:center;margin-top:24px}
 @media(max-width:760px){.account-form{grid-template-columns:1fr 1fr}.quick-form{grid-template-columns:1fr 1fr 1fr}.filters{grid-template-columns:1fr 1fr}}
 @media(max-width:460px){.fields2{grid-template-columns:1fr 1fr}.filters{grid-template-columns:1fr 1fr}.account-form,.quick-form{grid-template-columns:1fr 1fr}.account-form button,.quick-form button{grid-column:1/-1}.record{grid-template-columns:1fr auto}.nav{margin-bottom:13px}}
 </style></head><body><main>
-<header><div><small>PERSONAL FINANCE · V0.5</small><h1>Xiaoen Ledger</h1></div><small>深色簡約帳本 · 資料僅存目前瀏覽器<br>請定期匯出 JSON 備份</small></header>
+<header><div><small>PERSONAL FINANCE · V0.5.1</small><h1>Xiaoen Ledger</h1></div><small>深色簡約帳本 · 資料僅存目前瀏覽器<br>請定期匯出 JSON 備份</small></header>
 <nav class="nav" aria-label="主選單"><button class="active" data-view="home">總覽</button><button data-view="history">交易</button><button data-view="accounts">帳戶</button><button data-view="settings">設定</button></nav>
 <div id="message" role="status" aria-live="polite"></div>
 <div id="home" class="view">
@@ -96,7 +96,7 @@ footer{font-size:11px;color:#697287;text-align:center;margin-top:24px}
 <section class="panel"><h2>自訂快捷</h2><form id="quickForm" class="quick-form"><label>名稱<input id="quickName" required maxlength="16" placeholder="例如：早餐"></label><label>小圖示<input id="quickIcon" maxlength="4" placeholder="☕"></label><label>主分類<select id="quickGroup"></select></label><label>子分類<select id="quickSub"></select></label><label>常用金額（選填）<input id="quickAmount" type="number" min="0" step="1" placeholder="留空"></label><button type="submit">新增快捷</button></form><div id="quickManager"></div></section>
 <section class="panel"><h2>資料備份與還原</h2><p class="hint">目前尚無雲端同步。網站、瀏覽器或裝置切換可能看不到原資料；備份檔請自行妥善保存。</p><div class="row wrap"><button type="button" id="exportJson" class="alt">下載完整 JSON</button><button type="button" id="exportCsv" class="alt">下載 CSV</button><button type="button" id="importJson" class="alt">匯入 JSON</button><input id="importFile" type="file" accept=".json,application/json" hidden></div><p class="hint">匯入可選擇合併（依交易 ID 略過重複紀錄）或取代。取代前請先備份。</p></section>
 </div>
-<footer>V0.5 · 本機儲存測試版 · 帳戶與轉帳不支援外幣或分期帳務 · 不提供雲端同步</footer>
+<footer>V0.5.1 · 本機儲存測試版 · 帳戶與轉帳不支援外幣或分期帳務 · 不提供雲端同步</footer>
 </main><script>
 'use strict';
 const $=id=>document.getElementById(id);
