@@ -85,7 +85,16 @@ async function connectUser(sessionUser){
   showAuth(user);
   if(!user){state('本機儲存 · 尚未登入，紀錄不會跨裝置同步。','warning','local');return}
   const previousOwner=localStorage.getItem(OWNER_KEY);
-  if(previousOwner&&previousOwner!==user.id){backupLocal();data=blank();safeLocalSave();}
+  if(previousOwner&&previousOwner!==user.id){
+  // Keep a separate local snapshot before switching identities; never silently discard it.
+  try{
+    const snapshot=localStorage.getItem('xiaoen-ledger-v5');
+    if(snapshot)localStorage.setItem('xiaoen-ledger-v5-preswitch-'+previousOwner,snapshot);
+  }catch(e){ready(false);state('切換帳號前無法備份原本的本機帳本，已停止切換：'+e.message,'error','error');return}
+  backupLocal();
+  data=blank();
+  if(!safeLocalSave()){ready(false);state('無法安全切換帳號，請先保留原本備份。','error','error');return}
+}
   state('正在讀取雲端帳本…','warning','loading');
   try{const row=await loadRemote();await chooseInitial(row)}catch(e){enabled=false;ready(true);state('雲端讀取失敗 · 目前只能使用本機資料：'+e.message,'error','error')}
 }
@@ -113,7 +122,7 @@ function onChange(){if(!user||!enabled)return;schedule()}
 window.ledgerCloudChanged=onChange;
 $('cloudRetry').onclick=async()=>{if(!user)return state('請先登入','warning');if(conflict){backupLocal();const ok=confirm('已啟動下載本機備份。確定要以雲端版本取代本機未同步資料嗎？請先確認備份檔已保存在裝置中。');if(!ok)return;conflict=false;enabled=false;localStorage.removeItem(dirtyKey());ready(false);try{await chooseInitial(await loadRemote())}catch(e){ready(true);state('重新讀取失敗：'+e.message,'error','error')}return}if(!enabled){try{await chooseInitial(await loadRemote())}catch(e){state('重新連線失敗：'+e.message,'error')}return}pending=true;await flush()};
 $('cloudBackup').onclick=backupLocal;
-$('cloudSignOut').onclick=async()=>{if(pending){state('尚有未同步內容。請先重試同步或下載備份。','warning');backupLocal();return}const {error}=await api.auth.signOut();if(error)return state(error.message,'error');const oldDirty=dirtyKey();enabled=false;user=null;revision=0;showAuth(null);resetEntry();backupLocal();data=blank();safeLocalSave();localStorage.removeItem(OWNER_KEY);if(oldDirty)localStorage.removeItem(oldDirty);renderAll();state('已登出。這台瀏覽器的雲端工作資料已隱藏，原始本機備份不會自動刪除。','warning')};
+$('cloudSignOut').onclick=async()=>{if(pending||conflict||(user&&!enabled&&isMeaningful(data))||localStorage.getItem(dirtyKey())!==null){state('尚有未確認或未同步的本機資料，為避免清除資料，已暫停登出。請先備份並完成雲端同步。','error','error');backupLocal();return}const {error}=await api.auth.signOut();if(error)return state(error.message,'error');const oldDirty=dirtyKey();enabled=false;user=null;revision=0;showAuth(null);resetEntry();backupLocal();data=blank();safeLocalSave();localStorage.removeItem(OWNER_KEY);if(oldDirty)localStorage.removeItem(oldDirty);renderAll();state('已登出。這台瀏覽器的雲端工作資料已隱藏，原始本機備份不會自動刪除。','warning')};
 $('cloudForgot').onclick=async()=>{
  const address=email.value.trim();
  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address))return state('請先填寫註冊時的電子郵件。','warning');
