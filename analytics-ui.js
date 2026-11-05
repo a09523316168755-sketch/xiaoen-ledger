@@ -177,7 +177,7 @@ function drawCash(a){
  const opts=el('div','anal-mini-tabs');
  for(const [key,title] of [['day','每日'],['week','每週'],['month','每月']]){
  const btn=button(title,()=>{cashScale=key;draw()},'alt sm'+(cashScale===key?' selected':''));opts.append(btn)}
- b.append(opts);b.append(lineChart(a.cash[cashScale], '#b2a2e4',true));root.append(b);
+ b.append(opts);b.append(lineChart(a.cash[{day:'daily',week:'weekly',month:'monthly'}[cashScale]], '#b2a2e4',true));root.append(b);
  const c=block('帳戶資金變動','已歸屬帳戶的入扣款合計');
  c.append(hbars(a.cash.byAccount,a.cash.net,r=>{const ids=new Set(a.cash.items.filter(x=>x.account===r.name).map(x=>String(x.row.id)));recordDetail(r.name,a.sourceEvents.filter(e=>ids.has(e.id)))},'此期間沒有可歸屬的資金流。'));root.append(c);
  const payment=a.cash.items.filter(e=>e.kind==='cardPayment').reduce((n,e)=>n-e.amount,0);
