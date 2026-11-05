@@ -8,14 +8,30 @@ const PUBLIC_KEY='sb_publishable_Ky7-QaY2jSt_zY85BN2o_A_3u1gfoSL';
 const WEBSITE='https://a09523316168755-sketch.github.io/xiaoen-ledger/';
 const $=id=>document.getElementById(id);
 const status=$('cloudStatus'),email=$('cloudEmail'),pw=$('cloudPassword');
+const cloudPanel=$('cloudPanel'),cloudToggle=$('cloudToggle'),cloudBadge=$('cloudBadge');
+function setCloudOpen(open){cloudPanel.classList.toggle('hidden',!open);cloudToggle.setAttribute('aria-expanded',String(open));}
+cloudToggle.addEventListener('click',()=>setCloudOpen(cloudPanel.classList.contains('hidden')));
+$('cloudClose').addEventListener('click',()=>setCloudOpen(false));
 let api=null,user=null,revision=0,enabled=false,busy=false,pending=false,conflict=false,timeout=null;
 let recoveryMode=false,resetMailBusy=false;const recoveryLinkHint=new URLSearchParams(location.hash.slice(1)).get('type')==='recovery';
 const OWNER_KEY='xiaoen-ledger-cloud-owner';
 const dirtyKey=()=>user?'xiaoen-ledger-cloud-dirty-'+user.id:null;
-function state(msg,kind){status.textContent=msg;status.dataset.state=kind||''}
+function state(msg,kind){
+ status.textContent=msg;status.dataset.state=kind||'';
+ let label;
+ if(recoveryMode)label='重設密碼';
+ else if(!user)label='未登入';
+ else if(kind==='error')label='同步異常';
+ else if(enabled&&kind==='success')label='已同步';
+ else if(enabled)label='同步中';
+ else label='待同步';
+ cloudBadge.textContent=label;
+ cloudToggle.dataset.state=kind||'';
+}
 function showAuth(user){$('cloudAuthForm').classList.toggle('hidden',!!user);$('cloudLoggedIn').classList.toggle('hidden',!user);$('cloudUser').textContent=user?.email||'';}
 function showRecovery(){
  recoveryMode=true;
+ setCloudOpen(true);
  $('cloudAuthForm').classList.add('hidden');
  $('cloudLoggedIn').classList.add('hidden');
  $('cloudRecoveryPanel').classList.remove('hidden');
