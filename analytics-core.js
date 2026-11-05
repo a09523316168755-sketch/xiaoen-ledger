@@ -137,7 +137,7 @@ function calculate(ledger,opts={}){
  const projects=Object.keys(PROJECT).map(key=>{const es=expenseEvents.filter(e=>e.project===key);return {key,name:PROJECT[key],events:es,total:sum(es,'expense'),subcategories:groupSum(es,'expense',e=>e.sub),monthly:groupSum(es,'expense',e=>e.date.slice(0,7)).sort((a,b)=>a.name.localeCompare(b.name))}});
  const {items:allMotions,unassignedDates}=motions(events,ledger?.accounts);
  const cash=allMotions.filter(x=>x.date>=p.start&&x.date<=p.end);
- const cashIn=sum(cash.filter(x=>x.amount>0&&x.kind!=='transfer'),'amount'),cashOut=-sum(cash.filter(x=>x.amount<0&&x.kind!=='transfer'),'amount');
+ const cashIn=sum(cash.filter(x=>x.amount>0&&x.kind!=='transfer'),'amount'),cashOut=Math.abs(sum(cash.filter(x=>x.amount<0&&x.kind!=='transfer'),'amount'));
  const cashByAccount=groupSum(cash,'amount',x=>x.account);
  const currentCats=new Map(categories.map(x=>[x.name,x.value]));
  const previousCats=groupSum(prev.financial.filter(x=>x.expense!==0),'expense',x=>x.group);
