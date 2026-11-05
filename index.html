@@ -105,7 +105,7 @@ footer{font-size:11px;color:#697287;text-align:center;margin-top:24px}
  .tile b{font-size:clamp(15px,4.5vw,21px);overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
  #entryView .panel{padding:18px 15px}
 }
-</style></head><body><main>
+.data-loading #accountCards,.data-loading #recent,.data-loading #historyList,.data-loading #quickButtons{visibility:hidden}.data-loading #entryView input,.data-loading #entryView select,.data-loading #entryView button{pointer-events:none;opacity:.5}.data-loading #floatingEntry,.data-loading #homeNewEntry{pointer-events:none;opacity:.5}</style></head><body class="data-loading"><main>
 <header><div><small>PERSONAL FINANCE · V0.6.6</small><h1>Xiaoen Ledger</h1></div><div class="header-actions"><small>你的日常財務，一目了然</small><button type="button" id="cloudToggle" class="alt cloud-toggle" aria-expanded="false" aria-controls="cloudPanel"><span aria-hidden="true">☁</span> <span id="cloudBadge">未登入</span></button></div></header>
 <section id="cloudPanel" class="panel cloud-panel hidden"><div class="summary"><h2>私人雲端同步</h2><button type="button" class="alt sm" id="cloudClose">收起 ×</button></div><p id="cloudStatus" class="cloud-panel-status" role="status" aria-live="polite">正在初始化…</p><div class="cloud-login" id="cloudAuthForm"><label>電子郵件<input type="email" id="cloudEmail" autocomplete="email" placeholder="Email"></label><label>密碼<input type="password" id="cloudPassword" autocomplete="current-password" placeholder="至少 8 字元"></label><button id="cloudSignIn" type="button">登入</button><button id="cloudSignUp" type="button" class="alt">註冊</button><button id="cloudResend" type="button" class="alt">重寄驗證信</button><button id="cloudForgot" type="button" class="alt">忘記密碼？</button></div><div id="cloudRecoveryPanel" class="cloud-recovery hidden">
   <h2>設定新密碼</h2>
@@ -168,7 +168,7 @@ for(const r of v.rows){if(r.type==='transfer')continue;let g=v.categoryTree[r.ty
 return v}
 let data;let storageOk=true;
 try{const raw=localStorage.getItem(KEY);if(raw)data=migrate(JSON.parse(raw));else{const old=localStorage.getItem(PREV)||localStorage.getItem(EARLY);data=migrate(old?JSON.parse(old):null)}}catch(err){data=blank();storageOk=false;alert('無法讀取舊紀錄：'+err.message+'。請勿清除瀏覽器資料，先備份舊紀錄。')}
-function persist(next){if(!storageOk){alert('舊紀錄讀取失敗，為避免覆寫原資料，已暫停儲存。請先匯出或修復原資料。');return false}try{localStorage.setItem(KEY,JSON.stringify(next));queueMicrotask(()=>window.ledgerCloudChanged?.());return true}catch(err){alert('儲存失敗：'+err.message+'。請檢查瀏覽器是否封鎖儲存。');return false}}
+function persist(next){if(window.ledgerDataReady===false){alert('帳本正在讀取或等待雲端確認，尚不能儲存。請查看同步狀態後重試。');return false}if(!storageOk){alert('舊紀錄讀取失敗，為避免覆寫原資料，已暫停儲存。請先匯出或修復原資料。');return false}try{localStorage.setItem(KEY,JSON.stringify(next));queueMicrotask(()=>window.ledgerCloudChanged?.());return true}catch(err){alert('儲存失敗：'+err.message+'。請檢查瀏覽器是否封鎖儲存。');return false}}
 function apply(next,message){if(!persist(next))return false;data=next;renderAll();if(message)notify(message);return true}
 function notify(s){$('message').textContent=s}
 let currentView='home',entryType='expense',trash=false,editing=null;
@@ -250,7 +250,7 @@ function renderUnassigned(){
  el.textContent=rows.length?'⚠ '+rows.length+' 筆收入或支出尚未指定有效帳戶。這些交易已計入收支，但沒有反映到任何帳戶餘額。請到「交易」頁修改。':'';
 }
 function renderAll(){totals();renderAccountOptions();fillAccounts();renderAccounts();renderQuick();categoryUI();quickSelects();renderHistory();renderUnassigned()}
-window.ledgerSetDataReady=function(isReady){window.ledgerDataReady=Boolean(isReady)&&storageOk;renderAll()};
+window.ledgerSetDataReady=function(isReady){window.ledgerDataReady=Boolean(isReady)&&storageOk;document.body.classList.toggle('data-loading',!window.ledgerDataReady);renderAll()};
 window.ledgerHasUnsavedForm=function(){return editing!==null||Boolean($('amount').value)||Boolean($('note').value.trim())};
 resetEntry();renderAll();if(!storageOk)notify('舊資料讀取異常，請勿覆蓋之前的備份。');
 </script><script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.0/dist/umd/supabase.js"></script><script defer src="./cloud-v06.js?v=066"></script><script defer src="./auth-resend-v062.js"></script></body></html>
