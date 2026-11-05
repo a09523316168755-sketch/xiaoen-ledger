@@ -37,7 +37,7 @@ root.runLedgerAnalyticsTests=function(){
  assert('Net income less net expense',res.stats.net,28500);
  assert('Internal transfer excluded from finance',res.stats.financial.some(e=>e.kind==='transfer'),false);
  assert('Card payment excluded from finance',res.stats.financial.some(e=>e.row.id==='cardpay'),false);
- assert('Card payment affects bank cash flow',res.cash.outflow,3600);
+ assert('Card payment, bank transfer and settled expense affect bank cash flow',res.cash.outflow,4750);
  assert('Cash refund included as incoming',res.cash.inflow,37500);
  assert('Card charge not bank cash out',res.cash.items.some(x=>x.row.id==='cardspend'),false);
  assert('Settlement date outside occurrence period counted',res.cash.items.some(x=>x.row.id==='outside'),true);
