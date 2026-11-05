@@ -53,9 +53,9 @@ root.runLedgerAnalyticsTests=function(){
  assert('Zero income ratio null',A.calculate({rows:[]},opts).stats.expenseIncomeRatio,null);
  assert('Empty rows zero count',A.calculate({rows:[]},opts).count,0);
  assert('Empty rows no fabricated cash',A.calculate({rows:[]},opts).cash.items.length,0);
- const edited=structuredClone(ledger);edited.rows.find(x=>x.id==='food').amount=2000;
+ const edited=JSON.parse(JSON.stringify(ledger));edited.rows.find(x=>x.id==='food').amount=2000;
  assert('Edited expense instantly affects totals',A.calculate(edited,opts).stats.expense,4000);
- const deleted=structuredClone(ledger);deleted.rows.find(x=>x.id==='food').deletedAt='2026-11-06';
+ const deleted=JSON.parse(JSON.stringify(ledger));deleted.rows.find(x=>x.id==='food').deletedAt='2026-11-06';
  const deletedRes=A.calculate(deleted,opts);
  assert('Deleted original removes expense and refund linkage',deletedRes.warnings.orphanRefunds,2);
  deleted.rows.find(x=>x.id==='food').deletedAt=null;
