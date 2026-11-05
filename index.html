@@ -251,5 +251,6 @@ function renderUnassigned(){
 }
 function renderAll(){totals();renderAccountOptions();fillAccounts();renderAccounts();renderQuick();categoryUI();quickSelects();renderHistory();renderUnassigned()}
 window.ledgerSetDataReady=function(isReady){window.ledgerDataReady=Boolean(isReady)&&storageOk;renderAll()};
+window.ledgerHasUnsavedForm=function(){return editing!==null||Boolean($('amount').value)||Boolean($('note').value.trim())};
 resetEntry();renderAll();if(!storageOk)notify('舊資料讀取異常，請勿覆蓋之前的備份。');
 </script><script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.0/dist/umd/supabase.js"></script><script defer src="./cloud-v06.js?v=066"></script><script defer src="./auth-resend-v062.js"></script></body></html>
