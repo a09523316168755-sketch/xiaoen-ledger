@@ -29,6 +29,7 @@ function period(mode='month',options={}){
    if(!iso(start)||!iso(end)||start>end)throw new Error('自訂日期不正確，請確認起訖日期');break;
  default:start=firstOfMonth(now);end=now;label='本月（截至今日）';partial=true;
  }
+ if(mode==='custom'&&end>now){end=now;partial=true;label='自訂期間（截至今日）';if(start>end)throw Error('未來日期尚未發生，無法作為實際收支分析期間')}
  const count=days(start,end);return {mode,start,end,label,days:count,partial,comparison:{start:shift(start,-count),end:shift(start,-1),days:count,label:'緊接前一期，同長天數'}};
 }
 const money=amount=>Number.isSafeInteger(Number(amount))&&Number(amount)>0?Number(amount):null;
@@ -79,20 +80,20 @@ function proratedBudget(p,monthly){
 }
 function motions(events,accounts){
  const map=new Map((Array.isArray(accounts)?accounts:[]).map(a=>[String(a.id),a]));
- const out=[];let unassigned=0;
+ const out=[],unassignedDates=[];
  const asset=id=>{const a=map.get(String(id||''));return a&&a.kind!=='credit'?a:null};
  for(const e of events){
    const r=e.row,from=asset(r.accountId),to=asset(r.toAccountId);
    if(e.kind==='transfer'){
      if(from)out.push({date:e.settledDate,amount:-e.amount,row:r,account:from.name,kind:map.get(String(r.toAccountId))?.kind==='credit'?'cardPayment':'transfer'});
      if(to)out.push({date:e.settledDate,amount:e.amount,row:r,account:to.name,kind:'transfer'});
-     if(!from&&!to)unassigned++;
+     if(!from&&!to)unassignedDates.push(e.settledDate);
    }else if(['expense','income','refund','principal','orphanRefund'].includes(e.kind)){
      if(from)out.push({date:e.settledDate,amount:r.type==='expense'?-e.amount:e.amount,row:r,account:from.name,kind:e.kind});
-     else if(!r.accountId)unassigned++;
+     else if(!r.accountId)unassignedDates.push(e.settledDate);
    }
  }
- return {items:out,unassigned};
+ return {items:out,unassignedDates};
 }
 function isoWeek(d){const x=utc(d);let dow=x.getUTCDay();if(!dow)dow=7;x.setUTCDate(x.getUTCDate()-dow+1);return isoDate(x)}
 function dailyEvents(events,p,key='expense',limit=65){
@@ -113,6 +114,7 @@ function stats(events,p){
 function compareMoney(current,previous){if(previous===0)return null;return (current-previous)/Math.abs(previous)}
 function calculate(ledger,opts={}){
  const p=period(opts.mode||'month',opts);
+ const asOf=iso(opts.today)?opts.today:todayTaipei();
  const {events,warnings}=normalize(ledger);
  const s=stats(events,p),prev=stats(events,{...p,start:p.comparison.start,end:p.comparison.end,days:p.days});
  const finance=s.financial,expenseEvents=finance.filter(e=>e.expense!==0),incomeEvents=finance.filter(e=>e.income>0);
@@ -133,7 +135,7 @@ function calculate(ledger,opts={}){
  for(const e of expenses){const note=String(e.row.note||'').trim();if(!note)continue;const key=note.toLocaleLowerCase();if(!recurrence.has(key))recurrence.set(key,{note,months:new Set(),events:[]});const x=recurrence.get(key);x.months.add(e.date.slice(0,7));x.events.push(e)}
  const repeat=[...recurrence.values()].filter(x=>x.months.size>=3).map(x=>({name:x.note,months:x.months.size,amount:sum(x.events,'expense'),events:x.events})).sort((a,b)=>b.months-a.months);
  const projects=Object.keys(PROJECT).map(key=>{const es=expenseEvents.filter(e=>e.project===key);return {key,name:PROJECT[key],events:es,total:sum(es,'expense'),subcategories:groupSum(es,'expense',e=>e.sub),monthly:groupSum(es,'expense',e=>e.date.slice(0,7)).sort((a,b)=>a.name.localeCompare(b.name))}});
- const {items:allMotions,unassigned}=motions(events,ledger?.accounts);
+ const {items:allMotions,unassignedDates}=motions(events,ledger?.accounts);
  const cash=allMotions.filter(x=>x.date>=p.start&&x.date<=p.end);
  const cashIn=sum(cash.filter(x=>x.amount>0&&x.kind!=='transfer'),'amount'),cashOut=-sum(cash.filter(x=>x.amount<0&&x.kind!=='transfer'),'amount');
  const cashByAccount=groupSum(cash,'amount',x=>x.account);
@@ -150,7 +152,7 @@ function calculate(ledger,opts={}){
  const emergency=Number.isFinite(Number(settings.emergencyFund))&&String(settings.emergencyFund??'').trim()!==''&&Number(settings.emergencyFund)>=0?Number(settings.emergencyFund):null;
  const liquidAccounts=(ledger?.accounts||[]).filter(a=>a.kind!=='credit');
  const reliableBalances=liquidAccounts.length>0&&liquidAccounts.every(a=>Number.isSafeInteger(Number(a.opening)));
- const liquidBalance=reliableBalances?liquidAccounts.reduce((acc,a)=>acc+Number(a.opening)+events.reduce((d,e)=>{
+ const liquidBalance=reliableBalances?liquidAccounts.reduce((acc,a)=>acc+Number(a.opening)+events.filter(e=>e.date<=asOf&&e.settledDate<=asOf).reduce((d,e)=>{
    const r=e.row,amt=e.amount;
    if(e.kind==='transfer')return d+(r.accountId===a.id?-amt:0)+(r.toAccountId===a.id?amt:0);
    return d+(r.accountId===a.id?(r.type==='expense'?-amt:amt):0);
@@ -162,7 +164,7 @@ function calculate(ledger,opts={}){
    dailyExpenses:dailyEvents(expenseEvents,p),dailyIncome:dailyEvents(incomeEvents,p,'income'),
    expenseByDay,weekday,foodCount:food.length,drinkCount:drink.length,recurrence:repeat,projects,
    cash:{items:cash,net:cashIn-cashOut,inflow:cashIn,outflow:cashOut,byAccount:cashByAccount,
-     daily:cashGroups(cash,'day'),weekly:cashGroups(cash,'week'),monthly:cashGroups(cash,'month'),unassigned,
+     daily:cashGroups(cash,'day'),weekly:cashGroups(cash,'week'),monthly:cashGroups(cash,'month'),unassigned:unassignedDates.filter(d=>d>=p.start&&d<=p.end).length,
      approximateDates:cash.filter(x=>!iso(x.row.settledDate)).length},
    health:{balanceRate:s.income>0?s.net/s.income:null,budget,monthlyBudget:settings.monthlyBudget??null,
       budgetUsage:budget>0?s.expense/budget:null,fixedExpense,variableExpense,unclassifiedExpense:sum(expenseEvents.filter(e=>e.nature==='unknown'),'expense'),
