@@ -90,7 +90,7 @@ function motions(events,accounts){
      if(!from&&!to)unassignedDates.push(e.settledDate);
    }else if(['expense','income','refund','principal','orphanRefund'].includes(e.kind)){
      if(from)out.push({date:e.settledDate,amount:r.type==='expense'?-e.amount:e.amount,row:r,account:from.name,kind:e.kind});
-     else if(!r.accountId)unassignedDates.push(e.settledDate);
+     else if(!r.accountId||!map.has(String(r.accountId)))unassignedDates.push(e.settledDate);
    }
  }
  return {items:out,unassignedDates};
@@ -168,7 +168,7 @@ function calculate(ledger,opts={}){
      approximateDates:cash.filter(x=>!iso(x.row.settledDate)).length},
    health:{balanceRate:s.income>0?s.net/s.income:null,budget,monthlyBudget:settings.monthlyBudget??null,
       budgetUsage:budget>0?s.expense/budget:null,fixedExpense,variableExpense,unclassifiedExpense:sum(expenseEvents.filter(e=>e.nature==='unknown'),'expense'),
-      fixedRatio:s.income>0&&classifiedExp.length===expenseEvents.length?fixedExpense/s.income:null,
+      fixedRatio:s.income>0&&expenseEvents.length>0&&classifiedExp.length===expenseEvents.length?fixedExpense/s.income:null,
       emergencyMonths:essentials!==null&&emergency!==null?emergency/essentials:null,
       liquidBalance,projectedEndOfMonth:null},
    warnings,sourceEvents:events};
