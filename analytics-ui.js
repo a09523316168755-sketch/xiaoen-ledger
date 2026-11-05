@@ -66,6 +66,12 @@ function lineChart(points,color='#b2a2e4',bar=false){
  }
  const position=[0,Math.floor((points.length-1)/2),points.length-1];const seen=new Set();
  for(const i of position){if(seen.has(i))continue;seen.add(i);const t=svg('text',{x:x(i),y:200,'text-anchor':i===0?'start':i===points.length-1?'end':'middle',fill:'#b0b6c7','font-size':11});t.textContent=points[i].date.slice(5);view.append(t);}
+ const disclosure=el('details','anal-chart-values');
+ const summary=el('summary','', '查看各日期／月份實際數值');
+ disclosure.append(summary);
+ const numbers=el('div','anal-chart-value-list');
+ points.forEach(point=>{const d=el('div','anal-chart-value-row');append(d,el('span','',point.date),el('strong','',fmt(point.value)));numbers.append(d)});
+ disclosure.append(numbers);box.append(disclosure);
  return box;
 }
 function donut(rows,clicker){
@@ -128,6 +134,7 @@ function drawIncome(a){
  root.append(metrics([['收入合計',fmt(a.stats.income),'不含退款與本金轉移','anal-income'],
  ['涵蓋月份平均收入',a.incomeMonthlyAverage!==null?fmt(a.incomeMonthlyAverage):'資料不足','以選定期間涵蓋的 '+a.incomeMonthCount+' 個曆月平均，含未完成月份'],
  ['固定薪資收入',fmt(a.fixedIncome),'占總收入 '+pct(a.stats.income>0?a.fixedIncome/a.stats.income:null)],
+ ['已辨識非固定收入占比',pct(a.stats.income>0&&a.uncertainIncome===0?(a.stats.income-a.fixedIncome)/a.stats.income:null),'其他／未標記收入存在時不推測'],
  ['業績獎金波動',a.bonusDifference!==null?fmt(a.bonusDifference):'資料不足','有獎金月份的最高減最低']]));
  const b=block('收入來源結構','既有分類或手動指定的收入來源');append(b,donut(a.incomeSources,r=>recordDetail(r.name,events.filter(e=>core.SRC[e.incomeSource]===r.name))));root.append(b);
  const c=block('收入時間趨勢','依發生日期；跨月收入實際分布');append(c,lineChart(a.dailyIncome,'#85d9b1'));root.append(c);
@@ -172,7 +179,7 @@ function drawCash(a){
  const btn=button(title,()=>{cashScale=key;draw()},'alt sm'+(cashScale===key?' selected':''));opts.append(btn)}
  b.append(opts);b.append(lineChart(a.cash[cashScale], '#b2a2e4',true));root.append(b);
  const c=block('帳戶資金變動','已歸屬帳戶的入扣款合計');
- c.append(hbars(a.cash.byAccount,a.cash.net,r=>recordDetail(r.name,a.stats.events.filter(e=>e.row.accountId&&e.row.accountId===((getData()?.accounts||[]).find(x=>x.name===r.name)?.id))),'此期間沒有可歸屬的資金流。'));root.append(c);
+ c.append(hbars(a.cash.byAccount,a.cash.net,r=>{const ids=new Set(a.cash.items.filter(x=>x.account===r.name).map(x=>String(x.row.id)));recordDetail(r.name,a.sourceEvents.filter(e=>ids.has(e.id)))},'此期間沒有可歸屬的資金流。'));root.append(c);
  const payment=a.cash.items.filter(e=>e.kind==='cardPayment').reduce((n,e)=>n-e.amount,0);
  const d=block('資金流分類');
  d.append(metrics([['信用卡繳款',fmt(payment),'資金流出，不重複列生活支出'],['內部轉帳',a.cash.items.filter(e=>e.kind==='transfer').length+' 個帳戶記錄','資產間轉移，不增加收支']]));
