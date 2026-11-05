@@ -46,6 +46,7 @@ function sourceOf(r){
 function normalize(ledger){
  const rows=Array.isArray(ledger?.rows)?ledger.rows:[];
  const all=new Map(rows.filter(x=>x&&x.id!==undefined).map(x=>[String(x.id),x]));
+ const refundedTotals=new Map();
  const out=[], warnings={invalidRows:0,orphanRefunds:0,ambiguousPrincipal:0,unassignedAccount:0};
  for(const r of rows){
    if(!r||r.deletedAt)continue;
@@ -60,7 +61,8 @@ function normalize(ledger){
    else if(r.type==='income'&&r.analysisKind==='refund'){
      const original=all.get(String(r.refundOf||''));
      if(!original||original.deletedAt||original.type!=='expense'||money(original.amount)===null){e.kind='orphanRefund';warnings.orphanRefunds++;}
-     else{e.kind='refund';e.expense=-amount;e.group=String(original.group||'未分類');e.sub=String(original.sub||original.category||'未分類');e.nature=original.costNature==='fixed'?'fixed':original.costNature==='variable'?'variable':'unknown';e.project=PROJECT[original.projectTag]?original.projectTag:null}
+     else if((refundedTotals.get(String(r.refundOf))||0)+amount>Number(original.amount)){e.kind='orphanRefund';warnings.orphanRefunds++;}
+     else{refundedTotals.set(String(r.refundOf),(refundedTotals.get(String(r.refundOf))||0)+amount);e.kind='refund';e.expense=-amount;e.group=String(original.group||'未分類');e.sub=String(original.sub||original.category||'未分類');e.nature=original.costNature==='fixed'?'fixed':original.costNature==='variable'?'variable':'unknown';e.project=PROJECT[original.projectTag]?original.projectTag:null}
    }else if(r.type==='expense'){e.kind='expense';e.expense=amount;}
    else if(r.type==='income'){e.kind='income';e.income=amount;}
    else{warnings.invalidRows++;continue}
@@ -85,8 +87,8 @@ function motions(events,accounts){
      if(from)out.push({date:e.settledDate,amount:-e.amount,row:r,account:from.name,kind:map.get(String(r.toAccountId))?.kind==='credit'?'cardPayment':'transfer'});
      if(to)out.push({date:e.settledDate,amount:e.amount,row:r,account:to.name,kind:'transfer'});
      if(!from&&!to)unassigned++;
-   }else if(['expense','income','refund','principal'].includes(e.kind)){
-     if(from)out.push({date:e.settledDate,amount:e.kind==='expense'?-e.amount:e.amount,row:r,account:from.name,kind:e.kind});
+   }else if(['expense','income','refund','principal','orphanRefund'].includes(e.kind)){
+     if(from)out.push({date:e.settledDate,amount:r.type==='expense'?-e.amount:e.amount,row:r,account:from.name,kind:e.kind});
      else if(!r.accountId)unassigned++;
    }
  }
@@ -120,7 +122,7 @@ function calculate(ledger,opts={}){
  const incomeMonthly=groupSum(incomeEvents,'income',e=>e.date.slice(0,7)).sort((a,b)=>a.name.localeCompare(b.name));
  const bonusSeries=groupSum(incomeEvents.filter(e=>e.incomeSource==='bonus'),'income',e=>e.date.slice(0,7)).sort((a,b)=>a.name.localeCompare(b.name));
  const bonusDiff=bonusSeries.length>=2?Math.max(...bonusSeries.map(x=>x.value))-Math.min(...bonusSeries.map(x=>x.value)):null;
- const currentMonths=new Set(incomeEvents.map(e=>e.date.slice(0,7))).size;
+ let coveredMonths=0;for(let m=firstOfMonth(p.start);m<=p.end;m=firstOfMonth(m,1))coveredMonths++;
  const expenses=s.events.filter(e=>e.kind==='expense');
  const expenseByDay=groupSum(expenseEvents,'expense',e=>e.date);
  const weekdayNames=['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
@@ -135,6 +137,9 @@ function calculate(ledger,opts={}){
  const cash=allMotions.filter(x=>x.date>=p.start&&x.date<=p.end);
  const cashIn=sum(cash.filter(x=>x.amount>0),'amount'),cashOut=-sum(cash.filter(x=>x.amount<0),'amount');
  const cashByAccount=groupSum(cash,'amount',x=>x.account);
+ const currentCats=new Map(categories.map(x=>[x.name,x.value]));
+ const previousCats=groupSum(prev.financial.filter(x=>x.expense!==0),'expense',x=>x.group);
+ const categoryChange=[...new Set([...currentCats.keys(),...previousCats.map(x=>x.name)])].map(name=>{const current=currentCats.get(name)||0,previous=previousCats.find(x=>x.name===name)?.value||0;return {name,current,previous,amount:current-previous,rate:compareMoney(current,previous)}}).sort((x,y)=>Math.abs(y.amount)-Math.abs(x.amount));
  const classifiedExp=expenseEvents.filter(e=>e.nature!=='unknown');
  const fixedExpense=sum(classifiedExp.filter(e=>e.nature==='fixed'),'expense'),variableExpense=sum(classifiedExp.filter(e=>e.nature==='variable'),'expense');
  const fixedIncome=sum(incomeEvents.filter(e=>e.incomeSource==='salary'),'income');
@@ -145,14 +150,14 @@ function calculate(ledger,opts={}){
  const emergency=Number.isFinite(Number(settings.emergencyFund))&&String(settings.emergencyFund??'').trim()!==''&&Number(settings.emergencyFund)>=0?Number(settings.emergencyFund):null;
  const liquidAccounts=(ledger?.accounts||[]).filter(a=>a.kind!=='credit');
  const reliableBalances=liquidAccounts.length>0&&liquidAccounts.every(a=>Number.isSafeInteger(Number(a.opening)));
- const liquidBalance=reliableBalances?liquidAccounts.reduce((acc,a)=>acc+Number(a.opening)+events.filter(e=>!e.row.deletedAt).reduce((d,e)=>{
+ const liquidBalance=reliableBalances?liquidAccounts.reduce((acc,a)=>acc+Number(a.opening)+events.reduce((d,e)=>{
    const r=e.row,amt=e.amount;
    if(e.kind==='transfer')return d+(r.accountId===a.id?-amt:0)+(r.toAccountId===a.id?amt:0);
-   return d+(r.accountId===a.id?(e.kind==='expense'?-amt:e.kind==='orphanRefund'?0:amt):0);
+   return d+(r.accountId===a.id?(r.type==='expense'?-amt:amt):0);
  },0),0):null;
  return {period:p,stats:s,previous:prev,change:{income:compareMoney(s.income,prev.income),expense:compareMoney(s.expense,prev.expense),net:compareMoney(s.net,prev.net)},
-   count:s.financial.length,incomeSources,categories,subcategories,monthlyIncome:incomeMonthly,bonusDifference:bonusDiff,bonusSeries,
-   fixedIncome,uncertainIncome,incomeMonthlyAverage:incomeMonthly.length>=2?s.income/incomeMonthly.length:null,
+   count:s.financial.length,incomeSources,categories,subcategories,categoryChange,monthlyIncome:incomeMonthly,bonusDifference:bonusDiff,bonusSeries,
+   fixedIncome,uncertainIncome,incomeMonthlyAverage:coveredMonths>0?s.income/coveredMonths:null,incomeMonthCount:coveredMonths,
    topExpenses:expenses.slice().sort((a,b)=>b.amount-a.amount).slice(0,10),
    dailyExpenses:dailyEvents(expenseEvents,p),dailyIncome:dailyEvents(incomeEvents,p,'income'),
    expenseByDay,weekday,foodCount:food.length,drinkCount:drink.length,recurrence:repeat,projects,
