@@ -9,7 +9,7 @@ const WEBSITE='https://a09523316168755-sketch.github.io/xiaoen-ledger/';
 const $=id=>document.getElementById(id);
 const status=$('cloudStatus'),email=$('cloudEmail'),pw=$('cloudPassword');
 const cloudPanel=$('cloudPanel'),cloudToggle=$('cloudToggle'),cloudBadge=$('cloudBadge');
-function setCloudOpen(open){cloudPanel.classList.toggle('hidden',!open);cloudToggle.setAttribute('aria-expanded',String(open));}
+function setCloudOpen(open){cloudPanel.classList.toggle('hidden',!open);cloudToggle.setAttribute('aria-expanded',String(open));if(open)window.ledgerShowCloudView?.();else window.ledgerCloseCloudView?.();}
 cloudToggle.addEventListener('click',()=>setCloudOpen(cloudPanel.classList.contains('hidden')));
 $('cloudClose').addEventListener('click',()=>setCloudOpen(false));
 let api=null,user=null,revision=0,enabled=false,busy=false,pending=false,conflict=false,timeout=null;
