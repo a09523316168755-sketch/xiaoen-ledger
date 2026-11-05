@@ -126,13 +126,13 @@ function drawIncome(a){
  const events=a.stats.events.filter(e=>e.income>0);
  if(!events.length)root.append(empty('收入資料不足','所選期間沒有被標記為正常收入的交易。退款與本金轉移不算收入。'));
  root.append(metrics([['收入合計',fmt(a.stats.income),'不含退款與本金轉移','anal-income'],
- ['平均月收入',a.incomeMonthlyAverage!==null?fmt(a.incomeMonthlyAverage):'資料不足','至少要有兩個有收入的月份'],
- ['固定薪資收入',fmt(a.fixedIncome),'依既有分類或收入來源欄位'],
- ['業績獎金波動',a.bonusDifference!==null?fmt(a.bonusDifference):'資料不足','至少兩個有獎金紀錄的月份']]));
+ ['涵蓋月份平均收入',a.incomeMonthlyAverage!==null?fmt(a.incomeMonthlyAverage):'資料不足','以選定期間涵蓋的 '+a.incomeMonthCount+' 個曆月平均，含未完成月份'],
+ ['固定薪資收入',fmt(a.fixedIncome),'占總收入 '+pct(a.stats.income>0?a.fixedIncome/a.stats.income:null)],
+ ['業績獎金波動',a.bonusDifference!==null?fmt(a.bonusDifference):'資料不足','有獎金月份的最高減最低']]));
  const b=block('收入來源結構','既有分類或手動指定的收入來源');append(b,donut(a.incomeSources,r=>recordDetail(r.name,events.filter(e=>core.SRC[e.incomeSource]===r.name))));root.append(b);
  const c=block('收入時間趨勢','依發生日期；跨月收入實際分布');append(c,lineChart(a.dailyIncome,'#85d9b1'));root.append(c);
  const d=block('固定與浮動收入','固定僅包含明確標記為固定薪資的紀錄');
- append(d,metrics([['固定薪資',fmt(a.fixedIncome),'明確分類'],['其他已辨識收入',fmt(a.stats.income-a.fixedIncome-a.uncertainIncome),'不含來源不明'],['其他／未標記',fmt(a.uncertainIncome),'不推測其固定或浮動性質']]));
+ append(d,metrics([['固定薪資',fmt(a.fixedIncome),'比例 '+pct(a.stats.income>0?a.fixedIncome/a.stats.income:null)],['其他已辨識來源',fmt(a.stats.income-a.fixedIncome-a.uncertainIncome),'非固定薪資，來源已分類'],['其他／未標記',fmt(a.uncertainIncome),'不推測其固定或浮動性質']]));
  root.append(d);
 }
 function drawExpense(a){
@@ -147,6 +147,13 @@ function drawExpense(a){
  const c=block('子分類排行','同分類內退款會沖減淨支出');
  c.append(hbars(a.subcategories.slice(0,10),a.stats.expense,r=>recordDetail(r.name,es.filter(e=>e.group+' / '+e.sub===r.name))));root.append(c);
  const d=block('每日支出趨勢');d.append(lineChart(a.dailyExpenses,'#e89eaa',true));root.append(d);
+ const trend=block('各分類與上一可比較期間的變化','相同天數，比較前一期；退款按退款發生日期扣減');
+ const tList=el('div','anal-ranks');
+ a.categoryChange.slice(0,10).forEach(x=>{const line=el('div','anal-rank anal-clickable');line.tabIndex=0;line.role='button';
+ append(line,el('div','anal-ranktop',x.name+' · '+(x.amount>=0?'增加 ':'減少 ')+fmt(Math.abs(x.amount))),el('small','',fmt(x.previous)+' → '+fmt(x.current)+' · '+displayChange(x.rate)));
+ line.onclick=()=>recordDetail(x.name,a.stats.events.filter(e=>e.expense&&e.group===x.name));
+ line.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();line.click()}};tList.append(line)});
+ trend.append(a.categoryChange.length?tList:empty('資料不足','沒有分類可以跨期比較。'));root.append(trend);
  const e=block('固定／變動支出','僅統計已標記的交易');
  e.append(metrics([['固定',fmt(a.health.fixedExpense),'明確標記'],['變動',fmt(a.health.variableExpense),'明確標記'],['尚未分類',fmt(a.health.unclassifiedExpense),'未標記的歷史資料不猜測']]));root.append(e);
  const f=block('十大單筆支出','點擊以檢視原始交易');
@@ -196,6 +203,10 @@ function drawProjects(a){
  if(!p.events.length){b.append(empty('尚無已標記的專項交易','在「記帳」頁替交易選取對應專項標籤，這裡會立即彙總。'));root.append(b);continue}
  b.append(metrics([['本期淨成本',fmt(p.total),'含已關聯退款沖減','anal-expense'],['交易筆數',p.events.length+' 筆','可點分類查看交易']]));
  b.append(hbars(p.subcategories,p.total,r=>recordDetail(p.name+' · '+r.name,p.events.filter(x=>x.sub===r.name))));
+ const yearMap=new Map();for(const e of p.events){const y=e.date.slice(0,4);yearMap.set(y,(yearMap.get(y)||0)+e.expense)}
+ const yearly=[...yearMap].map(([name,value])=>({name,value})).sort((a,b)=>a.name.localeCompare(b.name));
+ const yearBlock=block('年度成本（所選期間內）','僅計入篩選期間，非全年時不代表完整年度');
+ yearBlock.append(hbars(yearly,p.total));b.append(yearBlock);
  const monthly=block('逐月成本');monthly.append(lineChart(p.monthly.map(x=>({date:x.name,value:x.value})),'#b1a6df',true));b.append(monthly);
  root.append(b);
  }
@@ -224,6 +235,11 @@ function drawHealth(a){
  if(ok)window.renderLedgerAnalytics?.();
  },'anal-primary');
  b.append(form,save,tip('預算依選定期間所涵蓋的曆日按月度天數比例分配；必要支出與預備金為手動確認值，不代表銀行查證。'));root.append(b);
+ const months=new Map();
+ for(const e of a.stats.events){const k=e.date.slice(0,7);months.set(k,(months.get(k)||0)+e.income-e.expense)}
+ const trend=block('逐月收支結餘趨勢','依期間實際發生交易歸集');
+ trend.append(lineChart([...months].sort((a,b)=>a[0].localeCompare(b[0])).map(([date,value])=>({date,value})),'#85d9b1'));
+ root.append(trend);
  const d=block('財務健康判讀口徑');
  d.append(tip('儲蓄率 =（已發生收入 − 已發生淨支出）÷ 已發生收入。未記錄的轉帳或未設定資產，不代表你沒有現金。'));
  d.append(tip('固定支出佔比只在每筆支出都有明確固定／變動標記時顯示。未設定必要支出、預備金或預算，不產生評分。'));
