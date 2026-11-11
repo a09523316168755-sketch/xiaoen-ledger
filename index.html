@@ -143,7 +143,7 @@ footer{font-size:11px;color:#697287;text-align:center;margin-top:24px}
 .anal-chart-value-row{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid rgba(210,210,245,.06);padding:6px 3px;font-size:11px}
 .anal-chart-value-row strong{font-variant-numeric:tabular-nums;font-weight:600;color:#e8e8f1}
 </style></head><body class="data-loading"><main>
-<header><div><small>PERSONAL FINANCE · V0.7.2</small><h1>Xiaoen Ledger</h1></div><div class="header-actions"><small>你的日常財務，一目了然</small><button type="button" id="cloudToggle" class="alt cloud-toggle" aria-expanded="false" aria-controls="cloudPanel"><span aria-hidden="true">☁</span> <span id="cloudBadge">未登入</span></button></div></header>
+<header><div><small>PERSONAL FINANCE · V0.7.3</small><h1>Xiaoen Ledger</h1></div><div class="header-actions"><small>你的日常財務，一目了然</small><button type="button" id="cloudToggle" class="alt cloud-toggle" aria-expanded="false" aria-controls="cloudPanel"><span aria-hidden="true">☁</span> <span id="cloudBadge">未登入</span></button></div></header>
 <div id="ledgerStatusBar" class="ledger-status" data-mode="loading" role="status" aria-live="polite">正在確認帳本來源與同步狀態…</div><nav class="nav" aria-label="主選單"><button class="active" data-view="home">總覽</button><button data-view="entryView">記帳</button><button data-view="history">交易</button><button data-view="analysis">分析</button><button data-view="accounts">帳戶</button><button data-view="settings">設定</button></nav>
 <div id="cloudView" class="view hidden"><section id="cloudPanel" class="panel cloud-panel hidden"><div class="summary"><h2>私人雲端同步</h2><button type="button" class="alt sm" id="cloudClose">收起 ×</button></div><p id="cloudStatus" class="cloud-panel-status" role="status" aria-live="polite">正在初始化…</p><div class="cloud-login" id="cloudAuthForm"><label>電子郵件<input type="email" id="cloudEmail" autocomplete="email" placeholder="Email"></label><label>密碼<input type="password" id="cloudPassword" autocomplete="current-password" placeholder="至少 8 字元"></label><button id="cloudSignIn" type="button">登入</button><button id="cloudSignUp" type="button" class="alt">註冊</button><button id="cloudResend" type="button" class="alt">重寄驗證信</button><button id="cloudForgot" type="button" class="alt">忘記密碼？</button></div><div id="cloudRecoveryPanel" class="cloud-recovery hidden">
   <h2>設定新密碼</h2>
@@ -196,7 +196,7 @@ footer{font-size:11px;color:#697287;text-align:center;margin-top:24px}
 <section class="panel"><h2>自訂快捷</h2><form id="quickForm" class="quick-form"><label>名稱<input id="quickName" required maxlength="16" placeholder="例如：早餐"></label><label>小圖示<input id="quickIcon" maxlength="4" placeholder="☕"></label><label>主分類<select id="quickGroup"></select></label><label>子分類<select id="quickSub"></select></label><label>常用金額（選填）<input id="quickAmount" type="number" min="0" step="1" placeholder="留空"></label><button type="submit">新增快捷</button></form><div id="quickManager"></div></section>
 <section class="panel"><h2>資料備份與還原</h2><p class="hint">雲端同步需登入並確認狀態為「已同步」。本機模式、失敗或未上傳的交易不保證跨裝置可見；請定期下載 JSON 備份。</p><div class="row wrap"><button type="button" id="exportJson" class="alt">下載完整 JSON</button><button type="button" id="exportCsv" class="alt">下載 CSV</button><button type="button" id="importJson" class="alt">匯入 JSON</button><input id="importFile" type="file" accept=".json,application/json" hidden></div><p class="hint">匯入可選擇合併（依交易 ID 略過重複紀錄）或取代。取代前請先備份。</p></section>
 </div>
-<footer>V0.7.2 · 手機優先／Financial Analytics 測試版 · 尚不支援外幣或分期帳務</footer><button id="floatingEntry" class="floating-entry" type="button" aria-label="新增交易">＋</button>
+<footer>V0.7.3 · 手機優先／Financial Analytics 測試版 · 尚不支援外幣或分期帳務</footer><button id="floatingEntry" class="floating-entry" type="button" aria-label="新增交易">＋</button>
 </main><script>
 'use strict';
 window.ledgerDataReady=false;
@@ -217,6 +217,8 @@ function guessSub(type,value){const text=String(value||'');const a={'餐飲':'�
 function migrate(raw){const v=blank();if(!raw)return v;const arr=Array.isArray(raw)?raw:raw.rows;if(!Array.isArray(arr))throw Error('舊版交易格式不正確');
 v.rows=arr.map(r=>{const type=['income','expense','transfer'].includes(r.type)?r.type:'expense';return {...r,id:String(r.id||uid()),type,amount:Number(r.amount),date:String(r.date||today()).slice(0,10),time:r.time||'',group:r.group||guessGroup(type,r.category),sub:r.sub||guessSub(type,r.category),accountId:r.accountId||'',toAccountId:r.toAccountId||'',deletedAt:r.deletedAt||null}}).filter(r=>Number.isSafeInteger(r.amount)&&r.amount>0);
 if(raw.categoryTree&&raw.categoryTree.expense&&raw.categoryTree.income)v.categoryTree=raw.categoryTree;
+const telecomGroup=v.categoryTree.expense.find(g=>g.name==='居家');
+if(telecomGroup&&!telecomGroup.subs.some(sub=>sub.name==='電信費'))telecomGroup.subs.push({id:'expense-home-telecom-20261111',name:'電信費',active:true});
 if(Array.isArray(raw.accounts))v.accounts=raw.accounts;
 if(Array.isArray(raw.audit))v.audit=raw.audit;
 if(raw.analyticsSettings&&typeof raw.analyticsSettings==='object'){for(const key of ['monthlyBudget','monthlyEssentials','emergencyFund']){const val=raw.analyticsSettings[key];v.analyticsSettings[key]=val===null||val===undefined?null:Number.isSafeInteger(Number(val))&&Number(val)>=0?Number(val):null}}
