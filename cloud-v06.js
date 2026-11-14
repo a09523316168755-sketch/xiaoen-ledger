@@ -18,6 +18,25 @@ let syncMode='loading',retryDelay=1500;
 function ready(v){window.ledgerSetDataReady?.(v)}const recoveryLinkHint=new URLSearchParams(location.hash.slice(1)).get('type')==='recovery';
 const OWNER_KEY='xiaoen-ledger-cloud-owner';
 const dirtyKey=()=>user?'xiaoen-ledger-cloud-dirty-'+user.id:null;
+// The previous implementation asked on every new cloud revision, even when the
+// local ledger had no unsynced edits. Remember the last confirmed cloud snapshot
+// separately from the unsent-change marker, so re-opening is interruption-free.
+const syncedKey=()=>user?'xiaoen-ledger-cloud-last-synced-'+user.id:null;
+const preImportKey=()=>user?'xiaoen-ledger-cloud-preimport-'+user.id:null;
+function rememberSynced(snapshot){
+  const key=syncedKey();if(!key)return;
+  try{localStorage.setItem(key,snapshot||JSON.stringify(data))}
+  catch(e){state('雲端已同步，但無法保留本機同步檢查點：'+e.message,'warning')}
+}
+function preservePreImport(){
+  const key=preImportKey();if(!key)return false;
+  try{
+    // One latest pre-import backup is retained locally; cloud data is NEVER
+    // modified by an automatic download.
+    localStorage.setItem(key,JSON.stringify({savedAt:new Date().toISOString(),payload:data}));
+    return true;
+  }catch(e){state('無法安全備份舊本機帳本，需由你確認後才能下載雲端版本。','error');return false}
+}
 function state(msg,kind,nextMode){
  if(nextMode)syncMode=nextMode;
  else if(recoveryMode)syncMode='loading';
@@ -73,11 +92,20 @@ if(!record){
 revision=Number(record.revision);
 const localBlob=JSON.stringify(local),remoteBlob=JSON.stringify(migrate(record.payload));
 if(isMeaningful(local)&&localBlob!==remoteBlob){
-  const useCloud=askChoice('這台裝置與雲端已有不同帳本。\n\n確定：下載並使用雲端資料（會先下載本機備份）。\n取消：先保留本機資料，不啟用同步。\n\n為安全起見，不會直接覆蓋已有的雲端帳本。');
-  if(!useCloud){enabled=false;ready(true);state('本機帳本與雲端不同，已暫停同步以保護資料。','warning','local');return;}
-  backupLocal();
+  const recognizedDevice=localStorage.getItem(OWNER_KEY)===user.id;
+  const synced=localStorage.getItem(syncedKey());
+  const untouched=(!synced||synced===JSON.stringify(data));
+  // An authenticated device with no dirty edits can safely take newer cloud
+  // data. Preserve a local snapshot first, including on the first upgrade
+  // from old versions without a saved sync checkpoint.
+  const autoDownload=recognizedDevice&&dirty===null&&untouched&&preservePreImport();
+  if(!autoDownload){
+    const useCloud=askChoice('這台裝置與雲端已有不同帳本。\n\n確定：下載並使用雲端資料（會先下載本機備份）。\n取消：先保留本機資料，不啟用同步。\n\n為安全起見，不會直接覆蓋已有的雲端帳本。');
+    if(!useCloud){enabled=false;ready(true);state('本機帳本與雲端不同，已暫停同步以保護資料。','warning','local');return;}
+    backupLocal();
+  }
 }
-replaceApp(record.payload);localStorage.setItem(OWNER_KEY,user.id);enabled=true;pending=false;ready(true);state('✓ 已從雲端載入，跨裝置同步已啟用','success','synced');
+replaceApp(record.payload);localStorage.setItem(OWNER_KEY,user.id);rememberSynced();enabled=true;pending=false;ready(true);state('✓ 已從雲端載入，跨裝置同步已啟用','success','synced');
 }
 async function connectUser(sessionUser){
   user=sessionUser;enabled=false;pending=false;conflict=false;busy=false;
@@ -112,7 +140,7 @@ async function flush(){
     conflict=true;enabled=false;
     state('同步衝突：另一台裝置已更新雲端。本機資料已保留，請先備份再處理。','error','error');return;
   }
-  revision=Number(output.current_revision);retryDelay=1500;localStorage.setItem(OWNER_KEY,user.id);
+  revision=Number(output.current_revision);retryDelay=1500;localStorage.setItem(OWNER_KEY,user.id);rememberSynced(snapshot);
   if(JSON.stringify(data)!==snapshot){pending=true;localStorage.setItem(dirtyKey(),String(revision));state('已有新紀錄，繼續同步…','warning')}
   else {localStorage.removeItem(dirtyKey());state('✓ 雲端同步成功 · 本機與雲端一致','success','synced')}
  }catch(e){pending=true;retryDelay=Math.min(retryDelay*2,30000);state('同步失敗 · 本機修改已保留，可按雲端按鈕重試：'+e.message,'error','error')}
@@ -122,7 +150,7 @@ function onChange(){if(!user||!enabled)return;schedule()}
 window.ledgerCloudChanged=onChange;
 $('cloudRetry').onclick=async()=>{if(!user)return state('請先登入','warning');if(conflict){backupLocal();const ok=confirm('已啟動下載本機備份。確定要以雲端版本取代本機未同步資料嗎？請先確認備份檔已保存在裝置中。');if(!ok)return;conflict=false;enabled=false;localStorage.removeItem(dirtyKey());ready(false);try{await chooseInitial(await loadRemote())}catch(e){ready(true);state('重新讀取失敗：'+e.message,'error','error')}return}if(!enabled){try{await chooseInitial(await loadRemote())}catch(e){state('重新連線失敗：'+e.message,'error')}return}pending=true;await flush()};
 $('cloudBackup').onclick=backupLocal;
-$('cloudSignOut').onclick=async()=>{if(pending||conflict||(user&&!enabled&&isMeaningful(data))||localStorage.getItem(dirtyKey())!==null){state('尚有未確認或未同步的本機資料，為避免清除資料，已暫停登出。請先備份並完成雲端同步。','error','error');backupLocal();return}const {error}=await api.auth.signOut();if(error)return state(error.message,'error');const oldDirty=dirtyKey();enabled=false;user=null;revision=0;showAuth(null);resetEntry();backupLocal();data=blank();safeLocalSave();localStorage.removeItem(OWNER_KEY);if(oldDirty)localStorage.removeItem(oldDirty);renderAll();state('已登出。這台瀏覽器的雲端工作資料已隱藏，原始本機備份不會自動刪除。','warning')};
+$('cloudSignOut').onclick=async()=>{if(pending||conflict||(user&&!enabled&&isMeaningful(data))||localStorage.getItem(dirtyKey())!==null){state('尚有未確認或未同步的本機資料，為避免清除資料，已暫停登出。請先備份並完成雲端同步。','error','error');backupLocal();return}const {error}=await api.auth.signOut();if(error)return state(error.message,'error');const oldDirty=dirtyKey(),oldSynced=syncedKey();enabled=false;user=null;revision=0;showAuth(null);resetEntry();backupLocal();data=blank();safeLocalSave();localStorage.removeItem(OWNER_KEY);if(oldDirty)localStorage.removeItem(oldDirty);if(oldSynced)localStorage.removeItem(oldSynced);renderAll();state('已登出。這台瀏覽器的雲端工作資料已隱藏，原始本機備份不會自動刪除。','warning')};
 $('cloudForgot').onclick=async()=>{
  const address=email.value.trim();
  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address))return state('請先填寫註冊時的電子郵件。','warning');
@@ -159,7 +187,7 @@ $('cloudResend').onclick=async()=>{const address=email.value.trim();if(!address)
 $('cloudSignIn').onclick=async()=>{const e=email.value.trim(),password=pw.value;if(!e||!password)return state('請輸入電子郵件與密碼。','warning');state('登入中…');const {error}=await api.auth.signInWithPassword({email:e,password});pw.value='';if(error)state('登入失敗：'+error.message,'error')};
 $('cloudSignUp').onclick=async()=>{const e=email.value.trim(),password=pw.value;if(!e||password.length<8)return state('請填入電子郵件與至少 8 字元的密碼。','warning');state('正在建立帳號…');const {data:result,error}=await api.auth.signUp({email:e,password,options:{emailRedirectTo:WEBSITE}});pw.value='';if(error)return state('註冊失敗：'+error.message,'error');if(!result.session)state('註冊完成，請到電子郵件確認帳號，再返回網站登入。','warning');else state('註冊成功，正在載入帳本…','success')};
 window.addEventListener('online',()=>{if(pending&&enabled&&!busy)void flush()});
-async function checkRemote(){if(!enabled||!user||busy||pending||conflict)return;try{const remote=await loadRemote();if(remote&&Number(remote.revision)>revision){if(pending||busy)return;if(window.ledgerHasUnsavedForm?.()){state('其他裝置已更新雲端，請先處理目前尚未儲存的表單；不會擅自清空輸入內容。','warning','syncing');return}if(localStorage.getItem(dirtyKey())!==null){conflict=true;enabled=false;return state('雲端已有新版，且本機仍有未上傳修改；已暫停同步。','error','error')}replaceApp(remote.payload);revision=Number(remote.revision);state('✓ 已接收其他裝置的最新紀錄','success')}}catch(e){state('檢查其他裝置更新失敗：'+e.message,'warning')}}
+async function checkRemote(){if(!enabled||!user||busy||pending||conflict)return;try{const remote=await loadRemote();if(remote&&Number(remote.revision)>revision){if(pending||busy)return;if(window.ledgerHasUnsavedForm?.()){state('其他裝置已更新雲端，請先處理目前尚未儲存的表單；不會擅自清空輸入內容。','warning','syncing');return}if(localStorage.getItem(dirtyKey())!==null){conflict=true;enabled=false;return state('雲端已有新版，且本機仍有未上傳修改；已暫停同步。','error','error')}if(localStorage.getItem(syncedKey())!==null&&localStorage.getItem(syncedKey())!==JSON.stringify(data)){conflict=true;enabled=false;return state('本機與上次同步的內容不同，已保留資料並停止自動覆蓋。','error','error')}replaceApp(remote.payload);revision=Number(remote.revision);rememberSynced();state('✓ 已接收其他裝置的最新紀錄','success')}}catch(e){state('檢查其他裝置更新失敗：'+e.message,'warning')}}
 window.addEventListener('storage',event=>{
  if(event.key==='xiaoen-ledger-v5'&&user&&enabled){
   // Another browser tab changed this device's local ledger. Never overwrite silently.
