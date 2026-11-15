@@ -74,6 +74,31 @@ function lineChart(points,color='#b2a2e4',bar=false){
  disclosure.append(numbers);box.append(disclosure);
  return box;
 }
+function incomeExpenseChart(income,expenses){
+ const labels=income.map(x=>x.date);
+ if(labels.length!==expenses.length||labels.some((x,i)=>x!==expenses[i].date))return empty('趨勢資料無法對齊','收入與支出期間不同，暫停繪圖以避免誤導。');
+ if(!labels.length)return empty('尚無資料','選定期間沒有交易。');
+ const box=el('div','anal-chart');
+ const legend=el('div','anal-mini-tabs');legend.style.marginBottom='8px';
+ append(legend,el('span','', '● 收入（綠）'),el('span','', '● 淨支出（紅）'));legend.style.display='flex';legend.style.gap='18px';legend.style.fontSize='12px';box.append(legend);
+ const view=svg('svg',{viewBox:'0 0 680 222',role:'img','aria-label':'收入與淨支出共用相同金額刻度與日期的趨勢圖',preserveAspectRatio:'xMidYMid meet'});box.append(view);
+ const vals=[...income,...expenses].map(x=>Number(x.value)||0);
+ const low=Math.min(0,...vals),high=Math.max(0,...vals),span=Math.max(1,high-low),left=57,right=663,top=12,bottom=181;
+ const y=n=>bottom-(n-low)/span*(bottom-top);
+ const x=i=>labels.length===1?(left+right)/2:left+i*(right-left)/(labels.length-1);
+ for(let k=0;k<=4;k++){const v=low+span*k/4,yy=y(v);view.append(svg('line',{x1:left,x2:right,y1:yy,y2:yy,stroke:'rgba(210,211,239,.12)','stroke-width':1}));const t=svg('text',{x:left-7,y:yy+4,'text-anchor':'end',fill:'#a5adbd','font-size':10});t.textContent=Math.round(v).toLocaleString('zh-TW',{notation:Math.abs(v)>99999?'compact':'standard'});view.append(t)}
+ for(const [points,color] of [[income,'#85d9b1'],[expenses,'#e89eaa']]){
+  const path=points.map((p,i)=>(i?'L':'M')+x(i).toFixed(1)+','+y(Number(p.value)||0).toFixed(1)).join(' ');
+  view.append(svg('path',{d:path,fill:'none',stroke:color,'stroke-width':2.5,'stroke-linejoin':'round','stroke-linecap':'round'}));
+  if(points.length<=18)points.forEach((p,i)=>view.append(svg('circle',{cx:x(i),cy:y(Number(p.value)||0),r:2.5,fill:color})));
+ }
+ const indexes=[0,Math.floor((labels.length-1)/2),labels.length-1];const seen=new Set();
+ for(const i of indexes){if(seen.has(i))continue;seen.add(i);const t=svg('text',{x:x(i),y:211,'text-anchor':i===0?'start':i===labels.length-1?'end':'middle',fill:'#b0b6c7','font-size':11});t.textContent=labels[i].slice(5);view.append(t)}
+ const disclosure=el('details','anal-chart-values');disclosure.append(el('summary','','查看各日期／月份收入、支出與結餘'));
+ const rows=el('div','anal-chart-value-list');
+ labels.forEach((date,i)=>{const row=el('div','anal-chart-value-row');row.style.flexWrap='wrap';append(row,el('span','',date),el('strong','', '收入 '+fmt(income[i].value)+' · 支出 '+fmt(expenses[i].value)+' · 結餘 '+fmt(income[i].value-expenses[i].value)));rows.append(row)});
+ disclosure.append(rows);box.append(disclosure);return box;
+}
 function donut(rows,clicker){
  const positive=rows.filter(x=>x.value>0),total=positive.reduce((a,x)=>a+x.value,0);
  if(!positive.length||total<=0)return empty('暫無占比','分類合計需為正數才可顯示占比。');
@@ -121,8 +146,7 @@ function drawOverview(a){
  ['支出／收入比',pct(s.expenseIncomeRatio),'收入為 0 時不適用']
  ]));
  const series=block('收入與支出趨勢','已發生交易；退款於退款日期沖減支出');
- const ch=el('div','anal-dualchart');append(ch,lineChart(a.dailyIncome,'#85d9b1'),lineChart(a.dailyExpenses,'#e89eaa'));
- append(series,ch,tip('左圖：收入（綠）；右圖：淨支出（紅）。時間較長時依月份彙總。'));
+ append(series,incomeExpenseChart(a.dailyIncome,a.dailyExpenses),tip('收入與支出使用相同日期及金額刻度。只統計目前帳本中的已發生交易；未匯入的歷史月份不會自動補齊。長期間按月彙總。'));
  root.append(series);
  const ranks=block('主要支出分類','點擊分類檢視交易');
  ranks.append(hbars(a.categories.slice(0,6),s.expense,r=>recordDetail(r.name,a.stats.events.filter(e=>e.expense&&e.group===r.name))));
@@ -258,7 +282,7 @@ function draw(){
  document.querySelectorAll('#analTabs button').forEach(x=>{x.classList.toggle('active',x.dataset.amodule===module);x.setAttribute('aria-selected',String(x.dataset.amodule===module))});
  if(!ledger){root.append(empty('等待帳本讀取完成','請先確認登入及雲端同步狀態。不使用可能過期的本機交易來產生報表。'));return}
  let a;try{a=core.calculate(ledger,getPeriod())}catch(e){root.append(empty('日期區間有誤',e.message));return}
- last=a;$('analRange').textContent=a.period.start+' → '+a.period.end+' · '+a.period.days+' 天 · 前期 '+a.period.comparison.start+' → '+a.period.comparison.end+'（同長天數）';
+ last=a;const dates=(ledger.rows||[]).filter(r=>!r.deletedAt&&r.date).map(r=>r.date).sort();if(dates.length){const note=tip('資料涵蓋：'+dates[0]+' 至 '+dates[dates.length-1]+'（目前帳本 '+dates.length+' 筆有效交易）。未匯入的歷史資料不會出現在趨勢圖。');root.append(note)}$('analRange').textContent=a.period.start+' → '+a.period.end+' · '+a.period.days+' 天 · 前期 '+a.period.comparison.start+' → '+a.period.comparison.end+'（同長天數）';
  const warnings=[];
  if(a.warnings.orphanRefunds)warnings.push(a.warnings.orphanRefunds+' 筆退款缺少有效原交易，未納入收支');
  if(a.warnings.invalidRows)warnings.push(a.warnings.invalidRows+' 筆交易資料不完整，未納入分析');
