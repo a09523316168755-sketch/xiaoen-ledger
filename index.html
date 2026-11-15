@@ -351,4 +351,4 @@ window.ledgerAnalyticsEditRow=id=>editRow(id);
 window.ledgerAnalyticsSaveSettings=patch=>{if(!window.ledgerDataReady||!storageOk)return false;const next=clone(data);next.analyticsSettings={...(next.analyticsSettings||{}),...patch};return apply(next,'財務設定已儲存並更新分析報表')};
 window.ledgerHasUnsavedForm=function(){return editing!==null||Boolean($('amount').value)||Boolean($('note').value.trim())};
 resetEntry();renderAll();if(!storageOk)notify('舊資料讀取異常，請勿覆蓋之前的備份。');
-</script><script defer src="./analytics-core.js?v=072"></script><script defer src="./analytics-ui.js?v=072"></script><script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.0/dist/umd/supabase.js"></script><script defer src="./cloud-v06.js?v=074"></script><script defer src="./auth-resend-v062.js"></script></body></html>
+</script><script defer src="./analytics-core.js?v=072"></script><script defer src="./analytics-ui.js?v=073"></script><script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.0/dist/umd/supabase.js"></script><script defer src="./cloud-v06.js?v=074"></script><script defer src="./auth-resend-v062.js"></script></body></html>
