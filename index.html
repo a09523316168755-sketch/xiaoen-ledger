@@ -142,6 +142,7 @@ footer{font-size:11px;color:#697287;text-align:center;margin-top:24px}
 .anal-chart-value-list{max-height:190px;overflow-y:auto;margin-top:8px}
 .anal-chart-value-row{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid rgba(210,210,245,.06);padding:6px 3px;font-size:11px}
 .anal-chart-value-row strong{font-variant-numeric:tabular-nums;font-weight:600;color:#e8e8f1}
+.record-details{margin-top:6px;color:#999eb2;font-size:12px;max-width:100%;overflow-wrap:anywhere}.record-details summary{cursor:pointer;list-style:none;display:inline-flex;align-items:center;gap:4px}.record-details summary::before{content:'⌄';font-size:13px}.record-details[open] summary::before{content:'⌃'}.record-full-note{margin-top:6px;line-height:1.6;white-space:pre-wrap;color:#c4c7d5;max-width:100%;overflow-wrap:anywhere}.record strong{overflow-wrap:anywhere}
 </style></head><body class="data-loading"><main>
 <header><div><small>PERSONAL FINANCE · V0.7.4</small><h1>Xiaoen Ledger</h1></div><div class="header-actions"><small>你的日常財務，一目了然</small><button type="button" id="cloudToggle" class="alt cloud-toggle" aria-expanded="false" aria-controls="cloudPanel"><span aria-hidden="true">☁</span> <span id="cloudBadge">未登入</span></button></div></header>
 <div id="ledgerStatusBar" class="ledger-status" data-mode="loading" role="status" aria-live="polite">正在確認帳本來源與同步狀態…</div><nav class="nav" aria-label="主選單"><button class="active" data-view="home">總覽</button><button data-view="entryView">記帳</button><button data-view="history">交易</button><button data-view="analysis">分析</button><button data-view="accounts">帳戶</button><button data-view="settings">設定</button></nav>
@@ -307,7 +308,31 @@ resetEntry();
 function editRow(id){const r=data.rows.find(x=>String(x.id)===String(id));if(!r||r.deletedAt)return;editing=String(r.id);navigate('entryView');selectType(r.type);editing=String(r.id);$('editId').value=editing;$('formTitle').textContent='修改原交易';$('saveButton').textContent='更新這筆交易';$('cancelEdit').textContent='取消編輯';$('amount').value=r.amount;$('when').value=r.date+'T'+(r.time||'12:00');if(r.type!=='transfer'){options($('group'),groups(r.type).map(g=>[g.name,g.name]),r.group);options($('subcategory'),(chosenGroup(r.type,r.group)?.subs||[]).map(q=>[q.name,q.name]),r.sub)}$('account').value=r.accountId||'';$('toAccount').value=r.toAccountId||'';$('note').value=r.note||'';$('analysisKind').value=r.analysisKind==='refund'?'refund':'normal';$('incomeSource').value=r.incomeSource||'';$('costNature').value=r.costNature||'';$('projectTag').value=r.projectTag||'';$('settledDate').value=r.settledDate||'';updateAnalysisFields();if(r.analysisKind==='refund')$('refundOf').value=r.refundOf||'';$('entryPanel').scrollIntoView({behavior:'smooth'});$('amount').focus({preventScroll:true})}
 function deleteRow(id){if(!confirm('移至回收區？可從交易頁還原。'))return;const next=clone(data),r=next.rows.find(x=>String(x.id)===String(id));if(!r)return;r.deletedAt=new Date().toISOString();next.audit.push({at:r.deletedAt,action:'delete',id:r.id});apply(next,'已移至回收區，可在交易頁還原')}
 function restoreRow(id){const next=clone(data),r=next.rows.find(x=>String(x.id)===String(id));if(!r)return;r.deletedAt=null;next.audit.push({at:new Date().toISOString(),action:'restore',id:r.id});apply(next,'交易已還原')}
-function rowNode(r){const d=document.createElement('div');d.className='record';const left=document.createElement('div'),title=document.createElement('strong'),sub=document.createElement('small');title.textContent=r.note|| (r.type==='transfer'?'帳戶轉帳':r.sub||r.category||'未分類');const missingAccount=r.type!=='transfer'&&(!r.accountId||!account(r.accountId));const source=account(r.accountId)?.name|| (r.accountId?'帳戶不存在':'⚠ 待確認：未指定帳戶');const target=r.type==='transfer'?' → '+(account(r.toAccountId)?.name||'未知帳戶'):'';sub.textContent=r.date+(r.time?' '+r.time:'')+' · '+(r.type==='transfer'?'轉帳':r.group+'／'+r.sub)+' · '+source+target;left.append(title,sub);if(missingAccount&&!r.deletedAt){const flag=document.createElement('span');flag.className='row-account-warning';flag.textContent='⚠ 待指定帳戶 · 不影響帳戶餘額';left.append(flag)}const right=document.createElement('div');const amt=document.createElement('div');amt.className='amount '+r.type;amt.textContent=(r.analysisKind==='refund'?'↩ 沖減支出 ':r.type==='expense'?'−':r.type==='income'?'+':'↔ ')+fmt(r.amount);right.append(amt);const actions=document.createElement('div');actions.className='row';if(r.deletedAt)actions.append(btn('還原',()=>restoreRow(r.id)));else actions.append(btn('修改',()=>editRow(r.id)),btn('刪除',()=>deleteRow(r.id),'warn sm'));right.append(actions);d.append(left,right);return d}
+function rowNode(r){
+ const d=document.createElement('div');d.className='record';
+ const left=document.createElement('div'),title=document.createElement('strong'),sub=document.createElement('small');
+ const raw=String(r.note||'').trim();
+ const defaultTitle=r.type==='transfer'?'帳戶轉帳':(r.sub&&r.sub!=='其他'?r.sub:r.group||r.category||'未分類');
+ const titleText=(()=>{
+  if(r.type==='transfer')return raw.length<=24&&raw?raw:defaultTitle;
+  if(/流浪貓|救援|代墊款收回/.test(raw))return '流浪貓基金回款';
+  if(/停車費未繳|停車.*罰單|罰單/.test(raw))return '停車罰單';
+  if(/電信費/.test(raw))return '電信費';
+  if(/薪資|獎金/.test(raw)&&raw.length>28)return r.sub&&r.sub!=='其他'?r.sub:'薪資獎金';
+  if(raw.length>30)return defaultTitle;
+  return raw||defaultTitle;
+ })();
+ title.textContent=titleText;
+ const missingAccount=r.type!=='transfer'&&(!r.accountId||!account(r.accountId));
+ const source=account(r.accountId)?.name||(r.accountId?'帳戶不存在':'⚠ 待指定帳戶');
+ const target=r.type==='transfer'?' → '+(account(r.toAccountId)?.name||'未知帳戶'):'';
+ sub.textContent=r.date+(r.time?' '+r.time:'')+' · '+(r.type==='transfer'?'轉帳':(r.sub&&r.sub!=='其他'?r.sub:r.group||'未分類'))+' · '+source+target;
+ left.append(title,sub);
+ if(raw&&raw!==titleText){const details=document.createElement('details');details.className='record-details';const summary=document.createElement('summary');summary.textContent='查看備註';const note=document.createElement('div');note.textContent=raw;note.className='record-full-note';details.append(summary,note);left.append(details)}
+ if(missingAccount&&!r.deletedAt){const flag=document.createElement('span');flag.className='row-account-warning';flag.textContent='⚠ 待指定帳戶';left.append(flag)}
+ const right=document.createElement('div');const amt=document.createElement('div');amt.className='amount '+r.type;amt.textContent=(r.analysisKind==='refund'?'↩ ':r.type==='expense'?'−':r.type==='income'?'+':'↔ ')+fmt(r.amount);right.append(amt);
+ const actions=document.createElement('div');actions.className='row';if(r.deletedAt)actions.append(btn('還原',()=>restoreRow(r.id)));else actions.append(btn('修改',()=>editRow(r.id)),btn('刪除',()=>deleteRow(r.id),'warn sm'));right.append(actions);d.append(left,right);return d}
+
 function drawRows(id,rows){const target=$(id);target.replaceChildren();if(!rows.length){const p=document.createElement('p');p.className='hint';p.textContent='目前沒有交易紀錄';target.append(p)}else rows.forEach(r=>target.append(rowNode(r)))}
 const sorted=()=>data.rows.slice().sort((a,b)=>(b.date+(b.time||'')).localeCompare(a.date+(a.time||'')));
 function renderHistory(){drawRows('recent',sorted().filter(r=>!r.deletedAt).slice(0,5));const search=$('search').value.trim().toLowerCase(),t=$('filterType').value,a=$('filterAccount').value,m=$('filterMonth').value;const records=sorted().filter(r=>Boolean(r.deletedAt)===trash&&(t==='all'||r.type===t)&&(a==='all'||r.accountId===a||r.toAccountId===a)&&(!m||r.date.startsWith(m))&&(!search||[r.note,r.group,r.sub,r.category].some(x=>String(x||'').toLowerCase().includes(search))));$('historyCount').textContent=records.length+' 筆'+(trash?'（回收區）':'');drawRows('historyList',records);$('showTrash').textContent=trash?'返回交易':'查看回收區'}
