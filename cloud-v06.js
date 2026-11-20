@@ -107,10 +107,51 @@ if(isMeaningful(local)&&localBlob!==remoteBlob){
 }
 replaceApp(record.payload);localStorage.setItem(OWNER_KEY,user.id);rememberSynced();enabled=true;pending=false;ready(true);state('✓ 已從雲端載入，跨裝置同步已啟用','success','synced');
 }
+
+async function refreshCompanySnapshot() {
+  const container = $('companySyncDetails');
+  if (!container) return;
+  if (!api || !user) { container.textContent = '請先登入雲端以查看腎虧資料。'; return; }
+  container.textContent = '正在讀取腎虧最新帳務快照…';
+  try {
+    const res = await api.from('company_sync_snapshots')
+      .select('bank_estimate,bank_reconciled_difference,customer_receivables,company_owes_owner,owner_repayments,status,synced_at')
+      .eq('user_id', user.id)
+      .order('synced_at',{ascending:false}).limit(1);
+    if (res.error) throw res.error;
+    if (!res.data || !res.data.length) {
+      container.textContent = '尚無公司快照，請先執行 Apps Script 同步。';
+      return;
+    }
+    const rec=res.data[0];
+    const money=n=>'NT$'+Number(n||0).toLocaleString('zh-TW');
+    const date=new Date(rec.synced_at).toLocaleString('zh-TW',{timeZone:'Asia/Taipei',hour12:false});
+    const pairs=[
+      ['國泰公司帳面推算',money(rec.bank_estimate)],
+      ['銀行對帳差額',money(rec.bank_reconciled_difference)],
+      ['客戶待收貨款',money(rec.customer_receivables)],
+      ['腎虧欠你的代墊款',money(rec.company_owes_owner)],
+      ['已還代墊款（累計）',money(rec.owner_repayments)],
+      ['最後同步（台灣）',date],
+      ['資料檢查',rec.status==='verified'?'資料檢查通過，非銀行即時餘額':'對帳有差異，請檢查']
+    ];
+    container.replaceChildren();
+    for (const [label,value] of pairs) {
+      const line=document.createElement('div'),left=document.createElement('span'),right=document.createElement('strong');
+      line.className='account-item';left.textContent=label;right.textContent=value;
+      line.append(left,right);container.append(line);
+    }
+  } catch (error) {
+    container.textContent='公司資料讀取失敗：'+error.message;
+  }
+}
+$('companySyncRefresh')?.addEventListener('click',()=>void refreshCompanySnapshot());
+
 async function connectUser(sessionUser){
   user=sessionUser;enabled=false;pending=false;conflict=false;busy=false;
   ready(!user);
   showAuth(user);
+  void refreshCompanySnapshot();
   if(!user){state('本機儲存 · 尚未登入，紀錄不會跨裝置同步。','warning','local');return}
   const previousOwner=localStorage.getItem(OWNER_KEY);
   if(previousOwner&&previousOwner!==user.id){
